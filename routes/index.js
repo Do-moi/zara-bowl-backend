@@ -1,10 +1,12 @@
 var express = require("express");
 var router = express.Router();
 var UserModel = require("../models/users");
+var commandeModel = require("../models/commande");
+var ballModel = require("../models/ball");
 var uid2 = require("uid2");
 var SHA256 = require("crypto-js/sha256");
 var encBase64 = require("crypto-js/enc-base64");
-var ballModel = require("../models/ball");
+
 var stripe = require("stripe")("sk_test_ZY8sZa9vQGzDbX48Nahzt3Ey00nSD58inI");
 
 router.get("/", function (req, res, next) {
@@ -17,10 +19,9 @@ router.get("/", function (req, res, next) {
 router.post("/sign-up", async function (req, res, next) {
   var body = req.body;
   var error = [];
-  var userSearch;
   var reponseSave = false;
   var userToken;
-  var profilUser;
+
   // ===================================var test password===============================================
   var passwordNB = false;
   var upperCase = false;
@@ -124,8 +125,8 @@ router.post("/sign-up", async function (req, res, next) {
 
   // ===============================================condition password===================
 
-  if (body.password.length < 6) {
-    error.push("mot de passe minimum 6 caractères");
+  if (body.password.length < 8) {
+    error.push("mot de passe minimum 8 caractères");
   }
   var regexUpperCase = /[A-Z]/;
   var findUpperCase = regexUpperCase.test(body.password);
@@ -254,37 +255,27 @@ router.post("/sign-up", async function (req, res, next) {
     });
     if (userFind == null) {
       var salt = uid2(32);
+      var token = uid2(32);
+      var hashPassword = SHA256(req.body.password + salt).toString(encBase64);
 
       var newUser = await new UserModel({
         nom: req.body.nom,
         prenom: req.body.prenom,
         telephone: req.body.telephone,
         email: req.body.email,
-        password: SHA256(req.body.password + salt).toString(encBase64),
+        password: hashPassword,
         adresse: req.body.adresse,
         postal: req.body.postal,
         ville: req.body.ville,
         salt: salt,
-        token: uid2(32),
+        token: token,
       });
 
       var userSave = await newUser.save();
-      console.log("======userSave", userSave);
-      profilUser = {
-        nom: userSave.nom,
-        prenom: userSave.prenom,
-        telephone: userSave.telephone,
-        email: userSave.email,
-        adresse: userSave.adresse,
-        postal: userSave.postal,
-        ville: userSave.ville,
-        commande: userSave.commande,
-      };
     }
     if (userFind) {
       userSearch = true;
     } else {
-      userSearch = profilUser;
       userToken = userSave.token;
     }
 
@@ -297,7 +288,6 @@ router.post("/sign-up", async function (req, res, next) {
 
   res.json({
     reponseSave,
-    userSearch,
     userToken,
     error,
   });
@@ -306,15 +296,73 @@ router.post("/sign-up", async function (req, res, next) {
 // ===========================================/sign-in==============================================
 
 router.post("/sign-in", async function (req, res, next) {
+  var body = req.body;
   var error = [];
   var findUser = false;
-
+  var testEmail = false;
   var token = null;
   var profilUser;
-
-  if (req.body.email == "" || req.body.password == "") {
-    error.push("champs vide");
+  // ===================================var test password===============================================
+  var passwordNB = false;
+  var upperCase = false;
+  var lowerCase = false;
+  var caracteres = false;
+  // =============================champs vides======================================
+  if (body.email == "" || body.password == "") {
+    error.push("champs vides");
   }
+  // =======================================condition email===============================
+  var regexEmail = /@/;
+  var findRegexEmail = regexEmail.test(body.email);
+
+  if (findRegexEmail == true) {
+    testEmail = true;
+  }
+  if (testEmail == false) {
+    error.push("format email incorrect");
+  }
+  // ===============================================condition password===================
+
+  if (body.password.length < 8) {
+    error.push("mot de passe minimum 8 caractères");
+  }
+  var regexUpperCase = /[A-Z]/;
+  var findUpperCase = regexUpperCase.test(body.password);
+
+  if (findUpperCase == true) {
+    upperCase = true;
+  }
+  var regexLowerCase = /[a-z]/;
+  var findLowerCase = regexLowerCase.test(body.password);
+
+  if (findLowerCase == true) {
+    lowerCase = true;
+  }
+
+  var regex = /[0-9]/;
+  var testNB = regex.test(body.password);
+
+  if (testNB == true) {
+    passwordNB = true;
+  }
+
+  var regex1 = /[^A-Za-z0-9_]/;
+  var testCaracteres = regex1.test(body.password);
+
+  if (testCaracteres == true) {
+    caracteres = true;
+  }
+
+  if (upperCase == false) {
+    error.push("mot de passe minimum 1 majuscule ");
+  } else if (passwordNB == false) {
+    error.push("mot de passe minimum 1 chiffre");
+  } else if (lowerCase == false) {
+    error.push("mot de passe minimum 1 minuscule ");
+  } else if (caracteres == false) {
+    error.push("mot de passe minimun 1 caractère spécial");
+  }
+  // ========================================findUser==================================
   if (error.length == 0) {
     const userFind = await UserModel.findOne({
       email: req.body.email,
@@ -381,7 +429,9 @@ router.post("/commande", async function (req, res, next) {
 
   if (charge.status === "succeeded") {
     cmd.map(async (ball, i) => {
-      var obj = {
+      const findIdUser = await UserModel.findOne({ token: idUser });
+
+      const newCmd = await new commandeModel({
         brand: ball.brand,
         name: ball.name,
         img: ball.img,
@@ -395,18 +445,9 @@ router.post("/commande", async function (req, res, next) {
         postal: idLivraison.postal,
         ville: idLivraison.ville,
         telephone: idLivraison.tel,
-      };
-
-      const cmdUpdate = await UserModel.updateMany(
-        {
-          token: idUser,
-        },
-        {
-          $push: {
-            commande: obj,
-          },
-        }
-      );
+        userCommande: findIdUser._id,
+      });
+      var cmdSave = await newCmd.save();
     });
 
     res.json({
@@ -422,19 +463,43 @@ router.post("/commande", async function (req, res, next) {
 
 router.post("/profil", async function (req, res, next) {
   var profilUser;
-
+  var tabCommande = [];
+  // console.log("================req.body.token", req.body.token);
   var userFind = await UserModel.findOne({
     token: req.body.token,
   });
+  var userCommande = await commandeModel.find({ userCommande: userFind._id });
+  // console.log("============userCommande", userCommande);
 
+  userCommande.map((commande, i) => {
+    var cmd = {
+      brand: commande.brand,
+      name: commande.name,
+      img: commande.img,
+      date: commande.date,
+      qte: commande.qte,
+      poids: commande.poids,
+      price: commande.price,
+      nom: commande.nom,
+      prenom: commande.prenom,
+      adresse: commande.adresse,
+      postal: commande.postal,
+      ville: commande.ville,
+      telephone: commande.telephone,
+    };
+    tabCommande.push(cmd);
+  });
+
+  // console.log("=============tabCommande", tabCommande);
   profilUser = {
     nom: userFind.nom,
     prenom: userFind.prenom,
     email: userFind.email,
+    telephone: userFind.telephone,
     adresse: userFind.adresse,
     postal: userFind.postal,
     ville: userFind.ville,
-    commande: userFind.commande,
+    commande: tabCommande,
   };
 
   res.json({
@@ -559,8 +624,8 @@ router.put("/updateUser", async function (req, res, next) {
 
   // ================================================condition password===================
 
-  if (body.password.length < 6) {
-    error.push("mot de passe minimum 6 caractères");
+  if (body.password.length < 8) {
+    error.push("mot de passe minimum 8 caractères");
   }
   var regexUpperCase = /[A-Z]/;
   var findUpperCase = regexUpperCase.test(body.password);
@@ -599,8 +664,8 @@ router.put("/updateUser", async function (req, res, next) {
     error.push("mot de passe minimun 1 caractère spécial");
   }
   //  ==============================================condition nouveau password===========================
-  if (body.newPassword.length < 6) {
-    error.push("nouveau mot de passe minimum 6 caractères");
+  if (body.newPassword.length < 8) {
+    error.push("nouveau mot de passe minimum 8 caractères");
   }
   var regexUpperCase = /[A-Z]/;
   var findUpperCase = regexUpperCase.test(body.newPassword);
@@ -728,7 +793,7 @@ router.put("/updateUser", async function (req, res, next) {
       if (hash === userFind.password) {
         result = true;
         var salt = uid2(32);
-
+        var newHash = SHA256(body.newPassword + salt).toString(encBase64);
         await UserModel.updateOne(
           { token: body.token },
           {
@@ -736,7 +801,7 @@ router.put("/updateUser", async function (req, res, next) {
             prenom: body.prenom,
             telephone: body.telephone,
             email: body.email,
-            password: SHA256(body.newPassword + salt).toString(encBase64),
+            password: newHash,
             adresse: body.adresse,
             postal: body.postal,
             ville: body.ville,
@@ -765,4 +830,5 @@ router.get("/searchBall", async function (req, res, next) {
 
   res.json({ response: ballFind });
 });
+
 module.exports = router;
