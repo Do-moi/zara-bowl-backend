@@ -6,7 +6,7 @@ var options = {
 };
 
 mongoose.connect(
-  "mongodb+srv://marc:marc@clustermoi-z4qk0.gcp.mongodb.net/zaraBowl?retryWrites=true&w=majority",
+  "mongodb+srv://marc:***************************?retryWrites=true&w=majority",
   options,
   function (error) {
     if (error) {
