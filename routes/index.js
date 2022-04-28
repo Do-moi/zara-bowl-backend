@@ -7,7 +7,7 @@ var uid2 = require("uid2");
 var SHA256 = require("crypto-js/sha256");
 var encBase64 = require("crypto-js/enc-base64");
 
-var stripe = require("stripe")("sk_test_ZY8sZa9vQGzDbX48Nahzt3Ey00nSD58inI");
+var stripe = require("stripe")("***********************************");
 
 router.get("/", function (req, res, next) {
   res.render("index", {
