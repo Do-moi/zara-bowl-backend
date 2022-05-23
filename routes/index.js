@@ -464,13 +464,10 @@ router.post("/commande", async function (req, res, next) {
 router.post("/profil", async function (req, res, next) {
   var profilUser;
   var tabCommande = [];
-  // console.log("================req.body.token", req.body.token);
   var userFind = await UserModel.findOne({
     token: req.body.token,
   });
   var userCommande = await commandeModel.find({ userCommande: userFind._id });
-  // console.log("============userCommande", userCommande);
-
   userCommande.map((commande, i) => {
     var cmd = {
       brand: commande.brand,
@@ -489,8 +486,6 @@ router.post("/profil", async function (req, res, next) {
     };
     tabCommande.push(cmd);
   });
-
-  // console.log("=============tabCommande", tabCommande);
   profilUser = {
     nom: userFind.nom,
     prenom: userFind.prenom,
@@ -777,8 +772,6 @@ router.put("/updateUser", async function (req, res, next) {
   }
   var regexVilleNB = /[0-9]/;
   var testVilleNumber = regexVilleNB.test(body.ville);
-
-  console.log("============testVilleNumber", testVilleNumber);
   if (testVilleNumber == true) {
     testVilleNB = true;
   }
